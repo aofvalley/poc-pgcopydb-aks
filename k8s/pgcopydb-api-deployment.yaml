@@ -15,6 +15,7 @@ spec:
       containers:
       - name: pgcopydb-api
         image: advconreg.azurecr.io/pgcopydb-api:latest
+        imagePullPolicy: Always   
         ports:
         - containerPort: 3000
         resources:
@@ -30,3 +31,5 @@ spec:
             port: 3000
           initialDelaySeconds: 10
           periodSeconds: 5
+      imagePullSecrets:
+      - name: acr-secret 
