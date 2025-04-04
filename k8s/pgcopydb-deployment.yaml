@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgcopydb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgcopydb
+  template:
+    metadata:
+      labels:
+        app: pgcopydb
+    spec:
+      containers:
+      - name: pgcopydb
+        image: <tu-acr-name>.azurecr.io/pgcopydb-custom:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
