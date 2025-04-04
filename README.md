@@ -25,11 +25,33 @@ pgcopydb-aks/
 
 ## Requisitos Previos
 
-- Azure CLI instalado
+- Azure CLI instalado (ver instrucciones abajo si no está instalado)
 - kubectl configurado para AKS
 - Docker instalado
 - Acceso a un Azure Container Registry (ACR)
 - Un clúster AKS configurado
+
+### Instalación de Azure CLI
+
+Si no tienes Azure CLI instalado, sigue estos pasos:
+
+1. **macOS**:
+   ```bash
+   brew install azure-cli
+   ```
+
+2. **Linux**:
+   ```bash
+   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+   ```
+
+3. **Windows**:
+   Descarga el instalador desde [Azure CLI](https://aka.ms/installazurecliwindows).
+
+4. Verifica la instalación:
+   ```bash
+   az --version
+   ```
 
 ## Instrucciones de Despliegue
 

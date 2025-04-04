@@ -1,16 +1,14 @@
-FROM dimitri/pgcopydb:latest
+# Usar la imagen oficial de pgcopydb
+FROM dimitri/pgcopydb:v0.17
 
-# Instalar dependencias adicionales si es necesario
-RUN apt-get update && apt-get install -y curl
-
-# Directorio de trabajo
+# Establecer el directorio de trabajo
 WORKDIR /app
 
-# Copiar scripts personalizados (si los necesitas)
+# Copiar scripts personalizados
 COPY scripts/ /app/scripts/
 
-# Exponer puerto (si es necesario, por ejemplo para una API)
+# Exponer el puerto 8080 (si es necesario)
 EXPOSE 8080
 
-# Comando por defecto (puedes cambiarlo más adelante al integrar la API)
+# Comando por defecto
 CMD ["pgcopydb", "--help"]

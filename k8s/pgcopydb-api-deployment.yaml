@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: pgcopydb-api
-        image: <tu-acr-name>.azurecr.io/pgcopydb-api:latest
+        image: advconreg.azurecr.io/pgcopydb-api:latest
         ports:
         - containerPort: 3000
         resources:

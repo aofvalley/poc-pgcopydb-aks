@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: pgcopydb
-        image: <tu-acr-name>.azurecr.io/pgcopydb-custom:latest
+        image: advconreg.azurecr.io/pgcopydb-custom:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
