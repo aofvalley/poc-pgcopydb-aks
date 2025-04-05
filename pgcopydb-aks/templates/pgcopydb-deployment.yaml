@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pgcopydb-aks.name" . }}-pgcopydb
+  labels:
+    {{- include "pgcopydb-aks.labels" . | nindent 4 }}
+    app: pgcopydb
+spec:
+  replicas: {{ .Values.pgcopydb.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pgcopydb-aks.selectorLabels" . | nindent 6 }}
+      app: pgcopydb
+  template:
+    metadata:
+      labels:
+        {{- include "pgcopydb-aks.selectorLabels" . | nindent 8 }}
+        app: pgcopydb
+    spec:
+      containers:
+      - name: pgcopydb
+        image: "{{ .Values.pgcopydb.image.repository }}:{{ .Values.pgcopydb.image.tag }}"
+        imagePullPolicy: {{ .Values.pgcopydb.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.pgcopydb.service.targetPort }}
+        resources:
+          {{- toYaml .Values.pgcopydb.resources | nindent 12 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

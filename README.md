@@ -83,11 +83,11 @@ docker tag pgcopydb-api <tu-acr-name>.azurecr.io/pgcopydb-api:latest
 docker push <tu-acr-name>.azurecr.io/pgcopydb-api:latest
 ```
 
-### 2. Actualizar los manifiestos de Kubernetes
+### 2. Opciones de Despliegue
+
+#### Opción A: Despliegue con manifiestos Kubernetes
 
 Editar los archivos YAML en la carpeta `k8s/` para reemplazar `<tu-acr-name>` con el nombre real de tu Azure Container Registry.
-
-### 3. Desplegar en AKS
 
 ```bash
 # Asegurarse de que kubectl está configurado para el clúster AKS correcto
@@ -99,6 +99,72 @@ kubectl apply -f k8s/pgcopydb-deployment.yaml
 # Desplegar la API y el servicio
 kubectl apply -f k8s/pgcopydb-api-deployment.yaml
 kubectl apply -f k8s/pgcopydb-api-service.yaml
+```
+
+#### Opción B: Despliegue con Helm Chart (Recomendado)
+
+El proyecto incluye un Helm chart que facilita la configuración y despliegue de todos los componentes.
+
+1. **Prerrequisitos para Helm**:
+   ```bash
+   # Verificar que Helm está instalado
+   helm version
+   
+   # Si no está instalado, en macOS:
+   brew install helm
+   ```
+
+2. **Configurar valores personalizados** (opcional):
+   Crea un archivo `custom-values.yaml` para personalizar la configuración:
+   ```yaml
+   # Ejemplo de custom-values.yaml
+   pgcopydb:
+     image:
+       repository: <tu-acr-name>.azurecr.io/pgcopydb-custom
+       tag: latest
+   
+   pgcopydbApi:
+     image:
+       repository: <tu-acr-name>.azurecr.io/pgcopydb-api
+       tag: latest
+     service:
+       type: LoadBalancer
+   
+   imagePullSecrets:
+     - name: acr-secret
+   ```
+
+3. **Desplegar con Helm**:
+   ```bash
+   # Sin valores personalizados (usa values.yaml predeterminado)
+   helm install pgcopydb-release ./pgcopydb-aks
+   
+   # Con valores personalizados
+   helm install pgcopydb-release ./pgcopydb-aks --values custom-values.yaml
+   
+   # Para actualizar un despliegue existente
+   helm upgrade pgcopydb-release ./pgcopydb-aks --values custom-values.yaml
+   ```
+
+4. **Verificar el despliegue**:
+   ```bash
+   helm list
+   kubectl get all -l app.kubernetes.io/instance=pgcopydb-release
+   ```
+
+5. **Desinstalar el Helm chart**:
+   ```bash
+   helm uninstall pgcopydb-release
+   ```
+
+### 3. Crear Secret para ACR (necesario para ambas opciones de despliegue)
+
+```bash
+# Crear secret para acceder a ACR desde AKS
+kubectl create secret docker-registry acr-secret \
+  --docker-server=<tu-acr-name>.azurecr.io \
+  --docker-username=<tu-acr-nombre-usuario> \
+  --docker-password=<tu-acr-password>
 ```
 
 ### 4. Verificar el Despliegue

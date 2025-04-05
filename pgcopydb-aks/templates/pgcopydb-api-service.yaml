@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pgcopydb-aks.name" . }}-api-service
+  labels:
+    {{- include "pgcopydb-aks.labels" . | nindent 4 }}
+    app: pgcopydb-api
+spec:
+  type: {{ .Values.pgcopydbApi.service.type }}
+  ports:
+    - port: {{ .Values.pgcopydbApi.service.port }}
+      targetPort: {{ .Values.pgcopydbApi.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "pgcopydb-aks.selectorLabels" . | nindent 4 }}
+    app: pgcopydb-api

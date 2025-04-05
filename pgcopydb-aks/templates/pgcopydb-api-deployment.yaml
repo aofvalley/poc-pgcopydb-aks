@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pgcopydb-aks.name" . }}-api
+  labels:
+    {{- include "pgcopydb-aks.labels" . | nindent 4 }}
+    app: pgcopydb-api
+spec:
+  replicas: {{ .Values.pgcopydbApi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pgcopydb-aks.selectorLabels" . | nindent 6 }}
+      app: pgcopydb-api
+  template:
+    metadata:
+      labels:
+        {{- include "pgcopydb-aks.selectorLabels" . | nindent 8 }}
+        app: pgcopydb-api
+    spec:
+      containers:
+      - name: pgcopydb-api
+        image: "{{ .Values.pgcopydbApi.image.repository }}:{{ .Values.pgcopydbApi.image.tag }}"
+        imagePullPolicy: {{ .Values.pgcopydbApi.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.pgcopydbApi.service.targetPort }}
+        resources:
+          {{- toYaml .Values.pgcopydbApi.resources | nindent 12 }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.pgcopydbApi.readinessProbe.httpGet.path }}
+            port: {{ .Values.pgcopydbApi.readinessProbe.httpGet.port }}
+          initialDelaySeconds: {{ .Values.pgcopydbApi.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.pgcopydbApi.readinessProbe.periodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,77 @@
+# Default values for pgcopydb-aks.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Common settings
+imagePullSecrets:
+  - name: acr-secret
+
+# PgCopyDB settings
+pgcopydb:
+  replicaCount: 1
+  image:
+    repository: advconreg.azurecr.io/pgcopydb-custom
+    tag: latest
+    pullPolicy: Always
+  
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+# PgCopyDB API settings
+pgcopydbApi:
+  replicaCount: 1
+  image:
+    repository: advconreg.azurecr.io/pgcopydb-api
+    tag: latest
+    pullPolicy: Always
+  
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 3000
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  readinessProbe:
+    httpGet:
+      path: /docs
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+# Other default settings
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

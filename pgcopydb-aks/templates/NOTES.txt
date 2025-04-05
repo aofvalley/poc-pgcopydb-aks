@@ -1,0 +1,36 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  helm status {{ .Release.Name }}
+  helm get all {{ .Release.Name }}
+
+PgCopyDB API Service:
+{{- if contains "LoadBalancer" .Values.pgcopydbApi.service.type }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        You can watch the status by running: kubectl get svc --namespace {{ .Release.Namespace }} -w {{ include "pgcopydb-aks.name" . }}-api-service
+
+  Get the external IP address with:
+    export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "pgcopydb-aks.name" . }}-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    echo http://$SERVICE_IP:{{ .Values.pgcopydbApi.service.port }}
+{{- else if contains "ClusterIP" .Values.pgcopydbApi.service.type }}
+  Access within the cluster:
+    kubectl port-forward svc/{{ include "pgcopydb-aks.name" . }}-api-service {{ .Values.pgcopydbApi.service.port }}:{{ .Values.pgcopydbApi.service.port }}
+    echo "Visit http://127.0.0.1:{{ .Values.pgcopydbApi.service.port }} to access the API"
+{{- end }}
+
+PgCopyDB Service:
+{{- if contains "LoadBalancer" .Values.pgcopydb.service.type }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        You can watch the status by running: kubectl get svc --namespace {{ .Release.Namespace }} -w {{ include "pgcopydb-aks.name" . }}-pgcopydb
+
+  Get the external IP address with:
+    export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "pgcopydb-aks.name" . }}-pgcopydb -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    echo http://$SERVICE_IP:{{ .Values.pgcopydb.service.port }}
+{{- else if contains "ClusterIP" .Values.pgcopydb.service.type }}
+  Access within the cluster:
+    kubectl port-forward svc/{{ include "pgcopydb-aks.name" . }}-pgcopydb {{ .Values.pgcopydb.service.port }}:{{ .Values.pgcopydb.service.port }}
+    echo "Visit http://127.0.0.1:{{ .Values.pgcopydb.service.port }} to access the service"
+{{- end }}
