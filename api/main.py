@@ -120,17 +120,6 @@ class JobStatus(BaseModel):
     error: Optional[str] = None
     finished: bool
 
-# Modelo específico para el comando dump schema
-class DumpSchemaRequest(BaseModel):
-    source: str = Field(..., description="Cadena de conexión a la base de datos origen")
-    dir: str = Field(..., description="Directorio donde se almacenará el dump")
-    
-    @validator('source')
-    def validate_connection_string(cls, v):
-        if not v.startswith('postgresql://'):
-            raise ValueError('La cadena de conexión debe comenzar con postgresql://')
-        return v
-
 # Función auxiliar para ejecutar comandos en background
 def run_command_background(job_id: str, cmd: str):
     try:
@@ -171,7 +160,7 @@ async def root():
         "pod": POD_NAME,
         "endpoints": [
             "/clone", "/dump", "/restore", "/copy", "/list-tables",
-            "/filter-tables", "/check-status", "/health", "/dump-schema"
+            "/filter-tables", "/check-status", "/health"
         ],
         "documentation": {
             "swagger": "/docs",
@@ -206,9 +195,9 @@ async def clone(request: CloneRequest, background_tasks: BackgroundTasks):
     try:
         job_id = str(uuid.uuid4())
         
-        # Construir el comando con opciones adicionales
+        # Construir el comando con opciones adicionales y usando flags --source y --target
         options_str = " ".join(request.options) if request.options else ""
-        cmd = f"pgcopydb clone {options_str} {request.source} {request.target}"
+        cmd = f"pgcopydb clone --source \"{request.source}\" --target \"{request.target}\" {options_str}"
         
         # Inicializar estado del trabajo
         jobs[job_id] = {
@@ -235,8 +224,8 @@ async def dump(request: DumpRequest, background_tasks: BackgroundTasks):
     try:
         job_id = str(uuid.uuid4())
         
-        # Construir comando con opciones
-        cmd = f"pgcopydb dump -s {request.source} -o {request.dir}"
+        # Construir comando con flags completos
+        cmd = f"pgcopydb dump --source \"{request.source}\" --output-dir \"{request.dir}\""
         
         if request.schema_only:
             cmd += " --schema-only"
@@ -274,8 +263,8 @@ async def restore(request: RestoreRequest, background_tasks: BackgroundTasks):
     try:
         job_id = str(uuid.uuid4())
         
-        # Construir comando con opciones
-        cmd = f"pgcopydb restore -t {request.target} -i {request.dir}"
+        # Construir comando con flags completos
+        cmd = f"pgcopydb restore --target \"{request.target}\" --input-dir \"{request.dir}\""
         
         if request.schema_only:
             cmd += " --schema-only"
@@ -313,8 +302,8 @@ async def copy_tables(request: CopyRequest, background_tasks: BackgroundTasks):
     try:
         job_id = str(uuid.uuid4())
         
-        # Construir comando con opciones
-        cmd = f"pgcopydb copy-db {request.source} {request.target}"
+        # Construir comando con opciones usando flags --source y --target
+        cmd = f"pgcopydb copy-db --source \"{request.source}\" --target \"{request.target}\""
         
         if request.tables:
             tables_str = " ".join([f"--table {t}" for t in request.tables])
@@ -401,79 +390,6 @@ async def check_status(job_id: str):
         "job_id": job_id,
         **job_info
     }
-
-@app.post("/dump-schema", summary="Realizar un dump del esquema de una base de datos PostgreSQL", response_model=JobStatus)
-async def dump_schema(request: DumpSchemaRequest, background_tasks: BackgroundTasks):
-    """
-    Ejecuta el comando pgcopydb dump schema para extraer solo el esquema de una base de datos.
-    
-    Este endpoint es especialmente útil para trabajar con PostgreSQL Flexible Server versión 17.
-    
-    Args:
-        request: Contiene la cadena de conexión a la base de datos fuente y el directorio de destino
-        
-    Returns:
-        Un objeto JobStatus con el ID del trabajo y el estado inicial
-    """
-    try:
-        job_id = str(uuid.uuid4())
-        
-        # Construir el comando específico para dump schema
-        cmd = f"pgcopydb dump schema --source \"{request.source}\" --dir \"{request.dir}\""
-        
-        # Inicializar estado del trabajo
-        jobs[job_id] = {
-            "status": "running",
-            "command": cmd,
-            "finished": False
-        }
-        
-        # Ejecutar en segundo plano
-        background_tasks.add_task(run_command_background, job_id, cmd)
-        
-        return {
-            "job_id": job_id,
-            "status": "running",
-            "command": cmd,
-            "finished": False
-        }
-    except Exception as e:
-        logger.exception("Error al iniciar dump schema")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Endpoint para probar directamente el comando específico de tu caso de uso
-@app.post("/adv-dump-schema", summary="Ejecutar el comando de dump schema específico para Azure PostgreSQL 17", response_model=JobStatus)
-async def adv_dump_schema(background_tasks: BackgroundTasks):
-    """
-    Ejecuta el comando específico para extraer el esquema de la base de datos advpsqlfxuk en Azure PostgreSQL 17.
-    
-    Este endpoint simplifica el proceso ejecutando directamente el comando con los parámetros predefinidos.
-    """
-    try:
-        job_id = str(uuid.uuid4())
-        
-        # Usar exactamente el comando que has probado funcionando
-        cmd = 'pgcopydb dump schema --source "postgresql://advpsqlfxuk.postgres.database.azure.com:5432/postgres?user=alfonsod&password=Raulito09&sslmode=require" --dir /app/backups/advpsqlfxuk-dump'
-        
-        # Inicializar estado del trabajo
-        jobs[job_id] = {
-            "status": "running",
-            "command": "pgcopydb dump schema [credenciales ocultas]",  # No mostrar credenciales en la respuesta
-            "finished": False
-        }
-        
-        # Ejecutar en segundo plano
-        background_tasks.add_task(run_command_background, job_id, cmd)
-        
-        return {
-            "job_id": job_id,
-            "status": "running",
-            "command": "pgcopydb dump schema [credenciales ocultas]",  # No mostrar credenciales en la respuesta
-            "finished": False
-        }
-    except Exception as e:
-        logger.exception("Error al iniciar dump schema para Azure PostgreSQL 17")
-        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
