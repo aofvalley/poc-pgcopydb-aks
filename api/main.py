@@ -68,13 +68,23 @@ class DumpRequest(BaseModel):
     dir: str = Field(..., description="Directorio donde se almacenará el dump")
     tables: Optional[List[str]] = Field(default=None, description="Lista de tablas específicas a incluir")
     exclude_tables: Optional[List[str]] = Field(default=None, description="Lista de tablas a excluir")
-    schema_only: Optional[bool] = Field(default=False, description="Realizar dump solo del esquema")
-    data_only: Optional[bool] = Field(default=False, description="Realizar dump solo de los datos")
+    dump_type: str = Field(default="full", description="Tipo de dump: 'full', 'schema', o 'roles'")
+    no_role_passwords: Optional[bool] = Field(default=False, description="No incluir contraseñas para los roles")
+    snapshot: Optional[str] = Field(default=None, description="Usar un snapshot exportado")
+    skip_extensions: Optional[bool] = Field(default=False, description="Omitir la restauración de extensiones")
+    filters_file: Optional[str] = Field(default=None, description="Archivo con filtros definidos")
     
     @validator('source')
     def validate_connection_string(cls, v):
         if not v.startswith('postgresql://'):
             raise ValueError('La cadena de conexión debe comenzar con postgresql://')
+        return v
+        
+    @validator('dump_type')
+    def validate_dump_type(cls, v):
+        allowed_types = ['full', 'schema', 'roles']
+        if v not in allowed_types:
+            raise ValueError(f'El tipo de dump debe ser uno de {", ".join(allowed_types)}')
         return v
 
 class RestoreRequest(BaseModel):
@@ -273,23 +283,49 @@ async def dump(request: DumpRequest, background_tasks: BackgroundTasks):
     try:
         job_id = str(uuid.uuid4())
         
-        # Base command for pgcopydb dump
-        cmd = f"pgcopydb dump --source \"{request.source}\" --dir \"{request.dir}\""
-        
-        # According to pgcopydb documentation, dump doesn't have schema-only/data-only flags
-        # We need to use schema/data sub-commands instead when requested
-        if request.schema_only:
+        # Construir el comando base según el tipo de dump seleccionado
+        if request.dump_type == "schema":
             cmd = f"pgcopydb dump schema --source \"{request.source}\" --dir \"{request.dir}\""
-        elif request.data_only:
-            cmd = f"pgcopydb dump data --source \"{request.source}\" --dir \"{request.dir}\""
+            
+            # Añadir opciones específicas para dump schema
+            if request.skip_extensions:
+                cmd += " --skip-extensions"
+            if request.snapshot:
+                cmd += f" --snapshot \"{request.snapshot}\""
+            if request.filters_file:
+                cmd += f" --filters \"{request.filters_file}\""
+                
+        elif request.dump_type == "roles":
+            cmd = f"pgcopydb dump roles --source \"{request.source}\" --dir \"{request.dir}\""
+            
+            # Añadir opción específica para dump roles
+            if request.no_role_passwords:
+                cmd += " --no-role-passwords"
+                
+        else:  # Si es "full", no hay subcomando específico en pgcopydb dump
+            # Según la documentación, pgcopydb dump sin subcomando no existe
+            # Usaremos una combinación de dump schema y dump roles
+            logger.info("El tipo 'full' ejecutará ambos dumps: schema y roles")
+            cmd = f"pgcopydb dump schema --source \"{request.source}\" --dir \"{request.dir}\" && "
+            cmd += f"pgcopydb dump roles --source \"{request.source}\" --dir \"{request.dir}\""
+            
+            # Añadir opciones para ambos comandos
+            if request.skip_extensions:
+                cmd = cmd.replace("dump schema", "dump schema --skip-extensions")
+            if request.snapshot:
+                cmd = cmd.replace("dump schema", f"dump schema --snapshot \"{request.snapshot}\"")
+            if request.filters_file:
+                cmd = cmd.replace("dump schema", f"dump schema --filters \"{request.filters_file}\"")
+            if request.no_role_passwords:
+                cmd = cmd.replace("dump roles", "dump roles --no-role-passwords")
         
-        # Add table filtering options if specified
-        if request.tables:
+        # Add table filtering options if specified (only applicable to schema dump)
+        if request.tables and "dump schema" in cmd:
             tables_str = " ".join([f"--table {t}" for t in request.tables])
-            cmd += f" {tables_str}"
-        if request.exclude_tables:
+            cmd = cmd.replace("dump schema", f"dump schema {tables_str}")
+        if request.exclude_tables and "dump schema" in cmd:
             exclude_str = " ".join([f"--exclude-table {t}" for t in request.exclude_tables])
-            cmd += f" {exclude_str}"
+            cmd = cmd.replace("dump schema", f"dump schema {exclude_str}")
         
         # Inicializar estado del trabajo
         jobs[job_id] = {
