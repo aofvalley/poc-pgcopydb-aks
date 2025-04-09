@@ -11,5 +11,5 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['{{ include "pgcopydb-aks.fullname" . }}:{{ .Values.service.port }}']
+      args: ['{{ include "pgcopydb-aks.name" . }}-api-service:{{ .Values.pgcopydbApi.service.port }}/health']
   restartPolicy: Never

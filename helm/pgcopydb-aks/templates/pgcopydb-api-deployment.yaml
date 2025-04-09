@@ -25,12 +25,29 @@ spec:
         - containerPort: {{ .Values.pgcopydbApi.service.targetPort }}
         resources:
           {{- toYaml .Values.pgcopydbApi.resources | nindent 12 }}
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: PORT
+          value: "{{ .Values.pgcopydbApi.service.targetPort }}"
         readinessProbe:
           httpGet:
-            path: {{ .Values.pgcopydbApi.readinessProbe.httpGet.path }}
-            port: {{ .Values.pgcopydbApi.readinessProbe.httpGet.port }}
-          initialDelaySeconds: {{ .Values.pgcopydbApi.readinessProbe.initialDelaySeconds }}
+            path: /health
+            port: {{ .Values.pgcopydbApi.service.targetPort }}
+          initialDelaySeconds: 15
           periodSeconds: {{ .Values.pgcopydbApi.readinessProbe.periodSeconds }}
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.pgcopydbApi.service.targetPort }}
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

@@ -17,6 +17,10 @@ spec:
         {{- include "pgcopydb-aks.selectorLabels" . | nindent 8 }}
         app: pgcopydb
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       - name: pgcopydb
         image: "{{ .Values.pgcopydb.image.repository }}:{{ .Values.pgcopydb.image.tag }}"
@@ -26,13 +30,33 @@ spec:
         resources:
           {{- toYaml .Values.pgcopydb.resources | nindent 12 }}
         volumeMounts:
-        - name: pgcopydb-storage
+        - name: pgcopydb-data
           mountPath: /app/pgcopydb_files
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: PGCOPYDB_TEMP_DIR
+          value: "/app/pgcopydb_files/temp_storage"
+        - name: PGCOPYDB_BACKUP_DIR
+          value: "/app/pgcopydb_files/backups"
+        - name: PGCOPYDB_LOG_DIR
+          value: "/app/pgcopydb_files/logs"
+        livenessProbe:
+          exec:
+            command:
+            - /app/healthcheck.sh
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          timeoutSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
       volumes:
-      - name: pgcopydb-storage
+      - name: pgcopydb-data
+        {{- if .Values.pgcopydb.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: {{ include "pgcopydb-aks.fullname" . }}-pvc
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+          claimName: {{ include "pgcopydb-aks.name" . }}-pgcopydb-data
+        {{- else }}
+        emptyDir: {}
+        {{- end }}

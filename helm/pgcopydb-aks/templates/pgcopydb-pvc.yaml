@@ -1,13 +1,22 @@
+{{- if .Values.pgcopydb.persistence.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "pgcopydb-aks.fullname" . }}-pvc
+  name: {{ include "pgcopydb-aks.name" . }}-pgcopydb-data
   labels:
     {{- include "pgcopydb-aks.labels" . | nindent 4 }}
+    app: pgcopydb
 spec:
   accessModes:
-    - ReadWriteOnce
-  storageClassName: {{ .Values.persistence.storageClass | default "managed-premium" }}
+    - {{ .Values.pgcopydb.persistence.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.pgcopydb.persistence.storageClass }}
+  {{- if (eq "-" .Values.pgcopydb.persistence.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: "{{ .Values.pgcopydb.persistence.storageClass }}"
+  {{- end }}
+  {{- end }}
   resources:
     requests:
-      storage: {{ .Values.persistence.size | default "10Gi" }}
+      storage: {{ .Values.pgcopydb.persistence.size | default "2Gi" }}
+{{- end }}

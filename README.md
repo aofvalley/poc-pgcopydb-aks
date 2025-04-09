@@ -1,3 +1,145 @@
+# PgCopyDB for Azure Kubernetes Service (AKS)
+
+This project deploys PgCopyDB (PostgreSQL database copying and migration tool) and its API to Azure Kubernetes Service (AKS).
+
+## Components
+
+- **PgCopyDB Container**: A containerized version of the pgcopydb tool with PostgreSQL 17 support
+- **PgCopyDB API**: A REST API for interacting with pgcopydb
+- **Helm Chart**: For easy deployment to AKS
+
+## Prerequisites
+
+- Azure CLI installed and configured
+- kubectl installed and configured
+- Helm 3.x installed
+- Access to an Azure Container Registry (ACR)
+- An AKS cluster deployed
+
+## Setup and Deployment
+
+### 1. Log in to Azure
+
+```bash
+az login
+```
+
+### 2. Connect to your AKS cluster
+
+```bash
+az aks get-credentials --resource-group <resource-group-name> --name adv_aks
+```
+
+### 3. Create a secret for pulling images from ACR
+
+```bash
+# Create a service principal for ACR access
+SP_PASSWORD=$(az ad sp create-for-rbac --name http://acr-service-principal --scopes $(az acr show --name advconreg --query id --output tsv) --role acrpull --query password --output tsv)
+SP_APP_ID=$(az ad sp show --id http://acr-service-principal --query appId --output tsv)
+
+# Create Kubernetes secret
+kubectl create secret docker-registry acr-secret \
+  --docker-server=advconreg.azurecr.io \
+  --docker-username=$SP_APP_ID \
+  --docker-password=$SP_PASSWORD
+```
+
+### 4. Build and Push Docker Images to ACR
+
+```bash
+# Log in to ACR
+az acr login --name advconreg
+
+# Build and push pgcopydb image
+cd app
+az acr build --registry advconreg --image pgcopydb-custom:latest .
+
+# Build and push API image
+cd ../api
+az acr build --registry advconreg --image pgcopydb-api:latest .
+```
+
+### 5. Deploy with Helm
+
+```bash
+cd ../helm
+helm install pgcopydb-release ./pgcopydb-aks
+```
+
+For a custom configuration, create a `custom-values.yaml` file and deploy with:
+
+```bash
+helm install pgcopydb-release ./pgcopydb-aks -f custom-values.yaml
+```
+
+### 6. Verify the deployment
+
+```bash
+kubectl get pods
+kubectl get services
+```
+
+## Accessing the API
+
+If you deployed with a LoadBalancer service type for the API (default):
+
+```bash
+# Get the external IP
+export SERVICE_IP=$(kubectl get svc pgcopydb-aks-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo "API is available at: http://$SERVICE_IP:80"
+
+# Test the API
+curl http://$SERVICE_IP:80/health
+```
+
+## Using pgcopydb
+
+Once deployed, you can use the API to:
+
+1. Clone databases
+2. Copy specific tables
+3. Dump and restore databases
+4. List and filter tables
+
+Check the API documentation at `/docs` endpoint for more details.
+
+## Customizing the Deployment
+
+Edit `values.yaml` or create a custom values file to modify:
+
+- Resource limits and requests
+- Number of replicas
+- Service types
+- Storage configuration
+- Image tags
+
+## Cleanup
+
+To remove the deployment:
+
+```bash
+helm uninstall pgcopydb-release
+```
+
+## Troubleshooting
+
+1. Check pod status:
+   ```bash
+   kubectl describe pod -l app=pgcopydb-api
+   kubectl describe pod -l app=pgcopydb
+   ```
+
+2. View logs:
+   ```bash
+   kubectl logs -l app=pgcopydb-api
+   kubectl logs -l app=pgcopydb
+   ```
+
+3. Exec into containers:
+   ```bash
+   kubectl exec -it <pod-name> -- /bin/bash
+   ```
+
 # pgcopydb-aks
 
 Herramienta para realizar clonación y migración de bases de datos PostgreSQL en entornos Docker y Kubernetes (AKS).
