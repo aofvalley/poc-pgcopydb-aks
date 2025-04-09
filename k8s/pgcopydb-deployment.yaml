@@ -25,5 +25,12 @@ spec:
           requests:
             memory: "256Mi"
             cpu: "250m"
+        volumeMounts:
+        - name: pgcopydb-storage
+          mountPath: /app/pgcopydb_files
+      volumes:
+      - name: pgcopydb-storage
+        persistentVolumeClaim:
+          claimName: pgcopydb-pvc
       imagePullSecrets:
-      - name: acr-secret 
+      - name: acr-secret

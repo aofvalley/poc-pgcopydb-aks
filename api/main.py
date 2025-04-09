@@ -2,6 +2,7 @@ import subprocess
 import logging
 import os
 import uuid
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -123,26 +124,74 @@ class JobStatus(BaseModel):
 # Función auxiliar para ejecutar comandos en background
 def run_command_background(job_id: str, cmd: str):
     try:
-        logger.info(f"Ejecutando comando: {cmd}")
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        # Crear directorio para logs si no existe
+        log_dir = "/app/pgcopydb_files/logs" if os.path.exists("/app/pgcopydb_files/logs") else "/tmp/logs"
+        os.makedirs(log_dir, exist_ok=True)
         
-        if result.returncode != 0:
-            logger.error(f"Error en comando {cmd}: {result.stderr}")
-            jobs[job_id] = {
-                "status": "error",
-                "command": cmd,
-                "output": result.stdout,
-                "error": result.stderr,
-                "finished": True
-            }
-        else:
-            logger.info(f"Comando completado exitosamente: {cmd}")
-            jobs[job_id] = {
-                "status": "completed",
-                "command": cmd,
-                "output": result.stdout,
-                "finished": True
-            }
+        # Archivo de log específico para este trabajo
+        log_file = f"{log_dir}/job-{job_id}.log"
+        
+        # Registrar el inicio del comando en el log principal y en el archivo específico
+        start_msg = f"[{datetime.now().isoformat()}] Iniciando comando: {cmd}"
+        logger.info(start_msg)
+        
+        with open(log_file, 'w') as f:
+            f.write(f"{start_msg}\n")
+            
+            # Modificar el comando para que también escriba su salida al archivo de log
+            # y a un archivo que puede ser accesible desde ambos contenedores
+            shared_log_file = f"{log_dir}/pgcopydb-executions.log"
+            modified_cmd = f"{cmd} 2>&1 | tee -a {log_file} {shared_log_file}"
+            
+            # Ejecutar el comando y redirigir la salida al archivo de log
+            process = subprocess.Popen(
+                modified_cmd,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1
+            )
+            
+            stdout, stderr = process.communicate()
+            
+            # Registrar el resultado en los logs
+            result_msg = f"[{datetime.now().isoformat()}] Comando finalizado con código: {process.returncode}"
+            f.write(f"{result_msg}\n")
+            
+            if process.returncode != 0:
+                error_msg = f"[{datetime.now().isoformat()}] Error en comando: {stderr}"
+                logger.error(error_msg)
+                f.write(f"{error_msg}\n")
+                jobs[job_id] = {
+                    "status": "error",
+                    "command": cmd,
+                    "output": stdout,
+                    "error": stderr,
+                    "finished": True,
+                    "log_file": log_file
+                }
+            else:
+                success_msg = f"[{datetime.now().isoformat()}] Comando completado exitosamente"
+                logger.info(success_msg)
+                f.write(f"{success_msg}\n")
+                jobs[job_id] = {
+                    "status": "completed",
+                    "command": cmd,
+                    "output": stdout,
+                    "finished": True,
+                    "log_file": log_file
+                }
+                
+            # Escribir al archivo de log compartido
+            with open(shared_log_file, 'a') as sf:
+                sf.write(f"\n{'='*50}\n")
+                sf.write(f"Job ID: {job_id}\n")
+                sf.write(f"Comando: {cmd}\n")
+                sf.write(f"Estado: {'Completado' if process.returncode == 0 else 'Error'}\n")
+                sf.write(f"Finalizado: {datetime.now().isoformat()}\n")
+                sf.write(f"{'='*50}\n\n")
+                
     except Exception as e:
         logger.exception(f"Excepción al ejecutar comando {cmd}")
         jobs[job_id] = {
@@ -389,6 +438,51 @@ async def check_status(job_id: str):
     return {
         "job_id": job_id,
         **job_info
+    }
+
+@app.get("/logs/{job_id}", summary="Ver los logs de un trabajo específico")
+async def get_job_logs(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontró el trabajo con ID {job_id}"
+        )
+    
+    job_info = jobs[job_id]
+    log_file = job_info.get("log_file")
+    
+    if not log_file or not os.path.exists(log_file):
+        return {
+            "job_id": job_id,
+            "logs": "No se encontraron logs para este trabajo"
+        }
+    
+    with open(log_file, 'r') as f:
+        logs = f.read()
+    
+    return {
+        "job_id": job_id,
+        "status": job_info["status"],
+        "command": job_info["command"],
+        "finished": job_info["finished"],
+        "logs": logs
+    }
+
+@app.get("/execution-logs", summary="Ver los logs de todas las ejecuciones")
+async def get_execution_logs():
+    log_dir = "/app/pgcopydb_files/logs" if os.path.exists("/app/pgcopydb_files/logs") else "/tmp/logs"
+    shared_log_file = f"{log_dir}/pgcopydb-executions.log"
+    
+    if not os.path.exists(shared_log_file):
+        return {
+            "logs": "No se encontraron logs de ejecución"
+        }
+    
+    with open(shared_log_file, 'r') as f:
+        logs = f.read()
+    
+    return {
+        "logs": logs
     }
 
 if __name__ == "__main__":

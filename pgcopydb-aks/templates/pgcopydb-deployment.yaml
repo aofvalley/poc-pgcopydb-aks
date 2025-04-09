@@ -25,6 +25,13 @@ spec:
         - containerPort: {{ .Values.pgcopydb.service.targetPort }}
         resources:
           {{- toYaml .Values.pgcopydb.resources | nindent 12 }}
+        volumeMounts:
+        - name: pgcopydb-storage
+          mountPath: /app/pgcopydb_files
+      volumes:
+      - name: pgcopydb-storage
+        persistentVolumeClaim:
+          claimName: {{ include "pgcopydb-aks.fullname" . }}-pvc
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

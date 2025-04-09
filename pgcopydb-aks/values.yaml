@@ -27,6 +27,11 @@ pgcopydb:
       cpu: 250m
       memory: 256Mi
 
+# Persistence configuration for pgcopydb files
+persistence:
+  storageClass: "managed-premium"
+  size: "10Gi"
+
 # PgCopyDB API settings
 pgcopydbApi:
   replicaCount: 1
