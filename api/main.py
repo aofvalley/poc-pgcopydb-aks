@@ -273,13 +273,17 @@ async def dump(request: DumpRequest, background_tasks: BackgroundTasks):
     try:
         job_id = str(uuid.uuid4())
         
-        # Construir comando con flags completos
-        cmd = f"pgcopydb dump --source \"{request.source}\" --output-dir \"{request.dir}\""
+        # Base command for pgcopydb dump
+        cmd = f"pgcopydb dump --source \"{request.source}\" --dir \"{request.dir}\""
         
+        # According to pgcopydb documentation, dump doesn't have schema-only/data-only flags
+        # We need to use schema/data sub-commands instead when requested
         if request.schema_only:
-            cmd += " --schema-only"
-        if request.data_only:
-            cmd += " --data-only"
+            cmd = f"pgcopydb dump schema --source \"{request.source}\" --dir \"{request.dir}\""
+        elif request.data_only:
+            cmd = f"pgcopydb dump data --source \"{request.source}\" --dir \"{request.dir}\""
+        
+        # Add table filtering options if specified
         if request.tables:
             tables_str = " ".join([f"--table {t}" for t in request.tables])
             cmd += f" {tables_str}"
