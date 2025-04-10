@@ -39,7 +39,7 @@ service:
 
 persistence:
   enabled: true
-  storageClass: "azure-disk-standard-lrs"
+  storageClass: "managed-csi"
   accessMode: ReadWriteOnce
   size: 2Gi
 
