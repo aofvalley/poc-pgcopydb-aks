@@ -1,0 +1,59 @@
+# Default values for pgcopydb-api helm chart
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Common settings
+nameOverride: ""
+fullnameOverride: ""
+
+# Image pull secrets for ACR access
+imagePullSecrets:
+  - name: acr-secret
+
+# PgCopyDB API configuration
+replicaCount: 1
+image:
+  repository: advconreg.azurecr.io/pgcopydb-api
+  tag: "latest"
+  pullPolicy: Always
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8000
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+readinessProbe:
+  periodSeconds: 10
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
