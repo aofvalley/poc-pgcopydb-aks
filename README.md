@@ -1,8 +1,5 @@
 # PgCopyDB para Azure Kubernetes Service (AKS)
 
-[![Build and Push Docker Images](https://github.com/username/pgcopydb-aks/actions/workflows/docker-build.yml/badge.svg)](https://github.com/username/pgcopydb-aks/actions/workflows/docker-build.yml)
-[![Deploy to AKS](https://github.com/username/pgcopydb-aks/actions/workflows/deploy-to-aks.yml/badge.svg)](https://github.com/username/pgcopydb-aks/actions/workflows/deploy-to-aks.yml)
-
 Solución para clonar, migrar y manipular bases de datos PostgreSQL utilizando [pgcopydb](https://github.com/dimitri/pgcopydb) en contenedores Docker y Kubernetes.
 
 ## 📋 Índice
