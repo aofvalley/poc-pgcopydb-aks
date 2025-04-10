@@ -1,8 +1,9 @@
 FROM python:3.11-slim
 
 # Establecer etiquetas para documentación
-LABEL version="1.0"
-LABEL description="API REST para pgcopydb en Azure Kubernetes Service"
+LABEL version="1.1"
+LABEL description="API REST versionada para pgcopydb en Azure Kubernetes Service"
+LABEL maintainer="DevOps Team"
 
 # Evitar diálogos interactivos durante la instalación
 ENV DEBIAN_FRONTEND=noninteractive
@@ -37,6 +38,10 @@ ENV LOG_LEVEL=INFO
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# Crear directorios necesarios para logs y almacenamiento temporal
+RUN mkdir -p /app/pgcopydb_files/logs /app/pgcopydb_files/temp && \
+    chmod -R 777 /app/pgcopydb_files
+
 # Copiar los archivos de requisitos primero para aprovechar el caché de Docker
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -66,5 +71,5 @@ USER apiuser
 # Exponer el puerto
 EXPOSE $PORT
 
-# Ejecutar la aplicación
+# Ejecutar la aplicación directamente con uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
