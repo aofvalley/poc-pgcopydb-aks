@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - api_refactor
     paths:
       - 'app/**'
       - '.github/workflows/app-build-push.yml'
