@@ -71,11 +71,11 @@ jobs:
           version: 'latest'
       
       - name: Set up kubeconfig
-        uses: azure/k8s-set-context@v3
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG }}
-      
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+          
       - name: Deploy to AKS with Helm
         run: |
           # Asegurarse de que el namespace existe
