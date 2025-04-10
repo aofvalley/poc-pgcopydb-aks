@@ -167,7 +167,8 @@ docker run -d --name pgcopydb-api-container \
 
 ```bash
 # Obtener la IP externa del servicio
-export SERVICE_IP=$(kubectl get svc pgcopydb-aks-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+export SERVICE_IP=$(kubectl get svc pgcopydb-api -n pgcopydb -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo "IP del servicio: $SERVICE_IP"
 
 # Verificar estado
 curl http://$SERVICE_IP:80/health
