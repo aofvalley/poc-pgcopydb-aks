@@ -1,222 +1,162 @@
-# PgCopyDB for Azure Kubernetes Service (AKS)
+# PgCopyDB para Azure Kubernetes Service (AKS)
 
-This project deploys PgCopyDB (PostgreSQL database copying and migration tool) and its API to Azure Kubernetes Service (AKS).
+[![Build and Push Docker Images](https://github.com/username/pgcopydb-aks/actions/workflows/docker-build.yml/badge.svg)](https://github.com/username/pgcopydb-aks/actions/workflows/docker-build.yml)
+[![Deploy to AKS](https://github.com/username/pgcopydb-aks/actions/workflows/deploy-to-aks.yml/badge.svg)](https://github.com/username/pgcopydb-aks/actions/workflows/deploy-to-aks.yml)
 
-## Components
+Solución para clonar, migrar y manipular bases de datos PostgreSQL utilizando [pgcopydb](https://github.com/dimitri/pgcopydb) en contenedores Docker y Kubernetes.
 
-- **PgCopyDB Container**: A containerized version of the pgcopydb tool with PostgreSQL 17 support
-- **PgCopyDB API**: A REST API for interacting with pgcopydb
-- **Helm Chart**: For easy deployment to AKS
+## 📋 Índice
 
-## Prerequisites
+- [Descripción General](#descripción-general)
+- [Componentes](#componentes)
+- [Flujos Automatizados con GitHub Actions](#flujos-automatizados-con-github-actions)
+- [Despliegue en AKS](#despliegue-en-aks)
+- [Despliegue Local con Docker](#despliegue-local-con-docker)
+- [Uso de la API](#uso-de-la-api)
+- [Operaciones Disponibles](#operaciones-disponibles)
+- [Monitorización y Logs](#monitorización-y-logs)
+- [Estructura del Proyecto](#estructura-del-proyecto)
+- [Consideraciones de Seguridad](#consideraciones-de-seguridad)
+- [Resolución de Problemas](#resolución-de-problemas)
+- [Limpieza de Recursos](#limpieza-de-recursos)
 
-- Azure CLI installed and configured
-- kubectl installed and configured
-- Helm 3.x installed
-- Access to an Azure Container Registry (ACR)
-- An AKS cluster deployed
+## 📝 Descripción General
 
-## Setup and Deployment
+PgCopyDB para AKS es una solución para implementar la herramienta [pgcopydb](https://github.com/dimitri/pgcopydb) en entornos containerizados. Permite clonar, migrar y gestionar bases de datos PostgreSQL de manera eficiente y escalable, con soporte para PostgreSQL 17.
 
-### 1. Log in to Azure
+## 🧩 Componentes
+
+- **Contenedor PgCopyDB**: Versión containerizada de pgcopydb con soporte para PostgreSQL 17
+- **API REST**: Interfaz para interactuar con pgcopydb de forma programática
+- **Charts de Helm**:
+  - `pgcopydb-aks`: Despliegue combinado de todos los componentes
+  - `pgcopydb-api`: Despliegue exclusivo de la API
+  - `pgcopydb-app`: Despliegue exclusivo de la aplicación pgcopydb
+
+## 🔄 Flujos Automatizados con GitHub Actions
+
+El proyecto incluye flujos de trabajo automatizados para CI/CD:
+
+### 1. Construcción y Publicación de Imágenes Docker
+
+Flujo de trabajo: `.github/workflows/docker-build.yml`
+
+Este flujo se activa automáticamente en:
+- Push a la rama principal
+- Pull requests hacia la rama principal
+- Activación manual desde GitHub
+
+Operaciones:
+- Compilación de imágenes Docker para pgcopydb y la API
+- Análisis de seguridad de las imágenes
+- Publicación en Azure Container Registry
+
+### 2. Despliegue en AKS
+
+Flujo de trabajo: `.github/workflows/deploy-to-aks.yml`
+
+Este flujo se activa:
+- Automáticamente después de una construcción exitosa de las imágenes
+- Manualmente desde GitHub
+
+Operaciones:
+- Autenticación en Azure
+- Conexión al clúster AKS
+- Despliegue mediante Helm
+- Verificación del estado del despliegue
+
+## 🚀 Despliegue en AKS
+
+### Requisitos previos
+
+- Azure CLI instalado y configurado
+- kubectl instalado y configurado
+- Helm 3.x instalado
+- Acceso a un Azure Container Registry (ACR)
+- Un clúster AKS desplegado
+
+### Pasos para el despliegue manual
+
+1. **Iniciar sesión en Azure**
 
 ```bash
 az login
 ```
 
-### 2. Connect to your AKS cluster
+2. **Conectarse al clúster AKS**
 
 ```bash
-az aks get-credentials --resource-group <resource-group-name> --name adv_aks
+az aks get-credentials --resource-group <nombre-grupo-recursos> --name <nombre-cluster>
 ```
 
-### 3. Create a secret for pulling images from ACR
+3. **Configurar acceso a ACR**
 
 ```bash
-# Create a service principal for ACR access
-SP_PASSWORD=$(az ad sp create-for-rbac --name http://acr-service-principal --scopes $(az acr show --name advconreg --query id --output tsv) --role acrpull --query password --output tsv)
+# Crear un service principal para ACR
+SP_PASSWORD=$(az ad sp create-for-rbac --name http://acr-service-principal --scopes $(az acr show --name <nombre-acr> --query id --output tsv) --role acrpull --query password --output tsv)
 SP_APP_ID=$(az ad sp show --id http://acr-service-principal --query appId --output tsv)
 
-# Create Kubernetes secret
+# Crear secreto en Kubernetes
 kubectl create secret docker-registry acr-secret \
-  --docker-server=advconreg.azurecr.io \
+  --docker-server=<nombre-acr>.azurecr.io \
   --docker-username=$SP_APP_ID \
   --docker-password=$SP_PASSWORD
 ```
 
-### 4. Build and Push Docker Images to ACR
+4. **Desplegar con Helm**
 
 ```bash
-# Log in to ACR
-az acr login --name advconreg
+# Despliegue completo
+helm install pgcopydb-release ./helm/pgcopydb-aks
 
-# Build and push pgcopydb image
-cd app
-az acr build --registry advconreg --image pgcopydb-custom:latest .
+# Con configuración personalizada
+helm install pgcopydb-release ./helm/pgcopydb-aks -f custom-values.yaml
 
-# Build and push API image
-cd ../api
-az acr build --registry advconreg --image pgcopydb-api:latest .
+# Sólo componente API
+helm install pgcopydb-api-release ./helm/pgcopydb-api
+
+# Sólo componente pgcopydb
+helm install pgcopydb-app-release ./helm/pgcopydb-app
 ```
 
-### 5. Deploy with Helm
-
-```bash
-cd ../helm
-helm install pgcopydb-release ./pgcopydb-aks
-```
-
-For a custom configuration, create a `custom-values.yaml` file and deploy with:
-
-```bash
-helm install pgcopydb-release ./pgcopydb-aks -f custom-values.yaml
-```
-
-### 6. Verify the deployment
+5. **Verificar el despliegue**
 
 ```bash
 kubectl get pods
 kubectl get services
 ```
 
-## Accessing the API
+## 🐳 Despliegue Local con Docker
 
-If you deployed with a LoadBalancer service type for the API (default):
+Para ejecutar el sistema localmente:
 
-```bash
-# Get the external IP
-export SERVICE_IP=$(kubectl get svc pgcopydb-aks-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-echo "API is available at: http://$SERVICE_IP:80"
-
-# Test the API
-curl http://$SERVICE_IP:80/health
-```
-
-## Using pgcopydb
-
-Once deployed, you can use the API to:
-
-1. Clone databases
-2. Copy specific tables
-3. Dump and restore databases
-4. List and filter tables
-
-Check the API documentation at `/docs` endpoint for more details.
-
-## Customizing the Deployment
-
-Edit `values.yaml` or create a custom values file to modify:
-
-- Resource limits and requests
-- Number of replicas
-- Service types
-- Storage configuration
-- Image tags
-
-## Cleanup
-
-To remove the deployment:
+1. **Construir las imágenes Docker**
 
 ```bash
-helm uninstall pgcopydb-release
+# Construir imagen pgcopydb
+docker build -t pgcopydb-local:latest ./app
+
+# Construir imagen API
+docker build -t pgcopydb-api-local:latest ./api
 ```
 
-## Troubleshooting
-
-1. Check pod status:
-   ```bash
-   kubectl describe pod -l app=pgcopydb-api
-   kubectl describe pod -l app=pgcopydb
-   ```
-
-2. View logs:
-   ```bash
-   kubectl logs -l app=pgcopydb-api
-   kubectl logs -l app=pgcopydb
-   ```
-
-3. Exec into containers:
-   ```bash
-   kubectl exec -it <pod-name> -- /bin/bash
-   ```
-
-# pgcopydb-aks
-
-Herramienta para realizar clonación y migración de bases de datos PostgreSQL en entornos Docker y Kubernetes (AKS).
-
-## Descripción
-
-Este proyecto proporciona una solución para clonar, migrar y manipular bases de datos PostgreSQL utilizando [pgcopydb](https://github.com/dimitri/pgcopydb) en contenedores Docker. Incluye una API REST para interactuar con la herramienta remotamente.
-
-## Estructura del Proyecto
-
-```
-pgcopydb-aks/
-├── api/                   # Código fuente de la API REST
-│   ├── Dockerfile         # Configuración para construir la imagen de la API
-│   ├── main.py            # Aplicación FastAPI
-│   └── requirements.txt   # Dependencias de Python
-├── app/                   # Código fuente de la aplicación pgcopydb
-│   ├── Dockerfile         # Configuración para construir la imagen de pgcopydb
-│   ├── entrypoint.sh      # Script de punto de entrada para mantener el contenedor ejecutándose
-│   └── healthcheck.sh     # Script para verificar el estado del contenedor
-├── k8s/                   # Manifiestos de Kubernetes para despliegue
-│   ├── pgcopydb-api-deployment.yaml
-│   ├── pgcopydb-api-service.yaml
-│   ├── pgcopydb-deployment.yaml
-│   └── pgcopydb-pvc.yaml
-└── pgcopydb-aks/          # Chart de Helm para despliegue en Kubernetes
-    ├── Chart.yaml
-    ├── values.yaml
-    └── templates/         # Plantillas para el chart de Helm
-```
-
-## Requisitos Previos
-
-- Docker instalado localmente
-- Acceso a bases de datos PostgreSQL de origen y destino
-- Docker Compose (opcional, para despliegue simplificado)
-
-## Pasos para Ejecutar el Sistema con Monitoreo de Logs
-
-Siga estos pasos para ejecutar el sistema localmente con Docker y habilitar el monitoreo de logs.
-
-### 1. Construir las imágenes Docker
-
-```bash
-# Construir la imagen de pgcopydb
-cd /Users/alfonsod/Desarrollo/pgcopydb-aks/app
-docker build -t pgcopydb-local:latest .
-
-# Construir la imagen de la API REST
-cd /Users/alfonsod/Desarrollo/pgcopydb-aks/api
-docker build -t pgcopydb-api-local:latest .
-```
-
-### 2. Crear una red Docker para la comunicación entre contenedores
+2. **Crear recursos de red y almacenamiento**
 
 ```bash
 docker network create pgcopydb-network
-```
-
-### 3. Crear un volumen para almacenamiento persistente
-
-```bash
 docker volume create pgcopydb-data
 ```
 
-### 4. Ejecutar el contenedor pgcopydb
+3. **Iniciar contenedores**
 
 ```bash
+# Contenedor pgcopydb
 docker run -d --name pgcopydb-container \
   --network pgcopydb-network \
   -v pgcopydb-data:/app/pgcopydb_files \
   pgcopydb-local:latest
-```
 
-### 5. Ejecutar el contenedor de la API REST
-
-```bash
+# Contenedor API
 docker run -d --name pgcopydb-api-container \
   --network pgcopydb-network \
   -p 8000:8000 \
@@ -224,151 +164,131 @@ docker run -d --name pgcopydb-api-container \
   pgcopydb-api-local:latest
 ```
 
-### 6. Verificar que ambos contenedores están en ejecución
+## 🔌 Uso de la API
+
+### Acceso a la API en AKS
 
 ```bash
-docker ps
+# Obtener la IP externa del servicio
+export SERVICE_IP=$(kubectl get svc pgcopydb-aks-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+# Verificar estado
+curl http://$SERVICE_IP:80/health
+
+# Documentación Swagger
+echo "Documentación disponible en: http://$SERVICE_IP:80/docs"
 ```
 
-Debería ver ambos contenedores `pgcopydb-container` y `pgcopydb-api-container` en estado "Up".
+### Acceso Local
 
-## Cómo Utilizar el Sistema
+- API: http://localhost:8000
+- Documentación Swagger: http://localhost:8000/docs
 
-Una vez que el sistema esté ejecutándose, puede utilizar la API REST para realizar operaciones con pgcopydb.
+## 🛠️ Operaciones Disponibles
 
-### 1. Ejecutar una operación de clonación de base de datos
+### Clonar una base de datos
 
 ```bash
-curl -X POST http://localhost:8000/clone \
+curl -X POST http://<api-endpoint>/clone \
   -H "Content-Type: application/json" \
   -d '{
-    "source": "postgresql://usuario:contraseña@servidor-origen:5432/basedatos?sslmode=require",
-    "target": "postgresql://usuario:contraseña@servidor-destino:5432/basedatos?sslmode=require",
+    "source": "postgresql://usuario:contraseña@origen:5432/db?sslmode=require",
+    "target": "postgresql://usuario:contraseña@destino:5432/db?sslmode=require",
     "options": ["--drop-if-exists", "--jobs", "4"]
   }'
 ```
 
-Este comando devolverá una respuesta con un identificador de trabajo (job_id):
+### Otras operaciones
 
-```json
-{
-  "job_id": "1234abcd-5678-90ef-ghij-klmn1234abcd",
-  "status": "running",
-  "command": "pgcopydb clone --source \"postgresql://...\" --target \"postgresql://...\" --drop-if-exists --jobs 4",
-  "finished": false
-}
-```
+- **Realizar dump**: `POST /dump`
+- **Restaurar desde dump**: `POST /restore`
+- **Copiar tablas específicas**: `POST /copy`
+- **Listar tablas**: `POST /list-tables`
+- **Verificar estado**: `GET /check-status/{job_id}`
+- **Ver logs**: `GET /logs/{job_id}`
 
-Guarde el `job_id` para consultar el estado posteriormente.
+Consulte la documentación Swagger para detalles completos.
 
-### 2. Verificar el estado de un trabajo
+## 📊 Monitorización y Logs
 
-```bash
-curl http://localhost:8000/check-status/1234abcd-5678-90ef-ghij-klmn1234abcd
-```
-
-### 3. Ver los logs detallados de un trabajo específico
+### En AKS
 
 ```bash
-curl http://localhost:8000/logs/1234abcd-5678-90ef-ghij-klmn1234abcd
+# Ver logs de los pods
+kubectl logs -l app=pgcopydb-api
+kubectl logs -l app=pgcopydb
+
+# Monitorización detallada
+kubectl describe pod -l app=pgcopydb-api
+kubectl describe pod -l app=pgcopydb
 ```
 
-### 4. Ver el historial de todos los trabajos ejecutados
+### En Docker local
 
 ```bash
-curl http://localhost:8000/execution-logs
-```
-
-### 5. Acceder a la documentación Swagger de la API
-
-Abra en su navegador: http://localhost:8000/docs
-
-### 6. Monitorear los logs directamente desde el contenedor
-
-```bash
-# Ver logs del contenedor pgcopydb
+# Ver logs en tiempo real
 docker logs -f pgcopydb-container
-
-# Ver logs del contenedor de la API
 docker logs -f pgcopydb-api-container
 ```
 
-## Operaciones Adicionales
+## 📁 Estructura del Proyecto
 
-### Realizar un dump de una base de datos
-
-```bash
-curl -X POST http://localhost:8000/dump \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source": "postgresql://usuario:contraseña@servidor:5432/basedatos?sslmode=require",
-    "dir": "/app/pgcopydb_files/backups/mi_backup",
-    "schema_only": false,
-    "data_only": false
-  }'
+```
+pgcopydb-aks/
+├── .github/workflows/       # Flujos de trabajo de GitHub Actions
+├── api/                     # API REST (FastAPI)
+├── app/                     # Aplicación pgcopydb
+├── backup/                  # Directorio para backups
+├── helm/                    # Charts de Helm
+│   ├── pgcopydb-aks/        # Chart completo
+│   ├── pgcopydb-api/        # Chart API
+│   └── pgcopydb-app/        # Chart pgcopydb
+└── k8s/                     # Manifiestos Kubernetes
 ```
 
-### Restaurar una base de datos desde un dump
+## 🔒 Consideraciones de Seguridad
+
+- **Gestión de credenciales**: Use Azure Key Vault para secretos, no hardcodee contraseñas
+- **Control de acceso**: Configure autenticación y CORS en entornos de producción
+- **Contenedores no-root**: Las imágenes Docker utilizan usuarios no-root
+- **Network Policies**: Restrinja la comunicación entre pods en AKS
+- **Escaneo de vulnerabilidades**: Automatizado en el flujo CI/CD
+
+## ⚠️ Resolución de Problemas
+
+1. **Problemas de conexión a la base de datos**
+   - Verifique las credenciales y la conectividad a PostgreSQL
+   - Asegúrese de que los firewalls permitan la conexión
+
+2. **Errores en los pods**
+   - Revise los logs: `kubectl logs -l app=pgcopydb-api`
+   - Verifique la configuración: `kubectl describe pod -l app=pgcopydb-api`
+
+3. **Problemas de almacenamiento**
+   - Compruebe que el PVC está correctamente aprovisionado
+   - Verifique los permisos de escritura en el volumen
+
+## 🧹 Limpieza de Recursos
+
+### En AKS
 
 ```bash
-curl -X POST http://localhost:8000/restore \
-  -H "Content-Type: application/json" \
-  -d '{
-    "target": "postgresql://usuario:contraseña@servidor:5432/basedatos_nueva?sslmode=require",
-    "dir": "/app/pgcopydb_files/backups/mi_backup"
-  }'
+# Eliminar despliegue Helm
+helm uninstall pgcopydb-release
 ```
 
-### Copiar tablas específicas entre bases de datos
+### En Docker local
 
 ```bash
-curl -X POST http://localhost:8000/copy \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source": "postgresql://usuario:contraseña@servidor-origen:5432/basedatos?sslmode=require",
-    "target": "postgresql://usuario:contraseña@servidor-destino:5432/basedatos?sslmode=require",
-    "tables": ["tabla1", "tabla2", "esquema.tabla3"]
-  }'
-```
-
-### Listar tablas de una base de datos
-
-```bash
-curl -X POST http://localhost:8000/list-tables \
-  -H "Content-Type: application/json" \
-  -d '{
-    "connection_string": "postgresql://usuario:contraseña@servidor:5432/basedatos?sslmode=require"
-  }'
-```
-
-## Consideraciones de Seguridad
-
-- **Protección de credenciales**: En un entorno de producción, no incluya contraseñas directamente en los comandos o en el código fuente. Utilice Azure Key Vault para almacenar secretos o variables de entorno seguras.
-- **Acceso a la API**: Configure correctamente CORS y autenticación en la API antes de exponerla fuera de su entorno local.
-- **Usuarios no-root**: Los contenedores utilizan usuarios no-root para mejorar la seguridad.
-
-## Limpieza
-
-Para detener y eliminar todos los recursos creados:
-
-```bash
-# Detener los contenedores
+# Detener y eliminar contenedores
 docker stop pgcopydb-container pgcopydb-api-container
-
-# Eliminar los contenedores
 docker rm pgcopydb-container pgcopydb-api-container
 
-# Eliminar la red
+# Eliminar recursos de red y almacenamiento
 docker network rm pgcopydb-network
-
-# Eliminar el volumen (¡cuidado! esto eliminará los datos persistentes)
 docker volume rm pgcopydb-data
 ```
 
-## Preparación para Despliegue en AKS
-
-Para implementar esta solución en Azure Kubernetes Service, consulte los archivos en el directorio `k8s/` y el chart de Helm en `pgcopydb-aks/`.
-
 ---
 
-Última actualización: 9 de abril de 2025
+Última actualización: 10 de abril de 2025
