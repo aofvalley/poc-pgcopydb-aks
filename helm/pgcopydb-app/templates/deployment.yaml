@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pgcopydb-app.fullname" . }}
+  labels:
+    {{- include "pgcopydb-app.labels" . | nindent 4 }}
+    app: pgcopydb
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pgcopydb-app.selectorLabels" . | nindent 6 }}
+      app: pgcopydb
+  template:
+    metadata:
+      labels:
+        {{- include "pgcopydb-app.selectorLabels" . | nindent 8 }}
+        app: pgcopydb
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: pgcopydb
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.targetPort }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        volumeMounts:
+        - name: pgcopydb-data
+          mountPath: /app/pgcopydb_files
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: PGCOPYDB_TEMP_DIR
+          value: "/app/pgcopydb_files/temp_storage"
+        - name: PGCOPYDB_BACKUP_DIR
+          value: "/app/pgcopydb_files/backups"
+        - name: PGCOPYDB_LOG_DIR
+          value: "/app/pgcopydb_files/logs"
+        livenessProbe:
+          exec:
+            command:
+            - /app/healthcheck.sh
+          initialDelaySeconds: 30
+          periodSeconds: 60
+      volumes:
+      - name: pgcopydb-data
+        persistentVolumeClaim:
+          claimName: {{ include "pgcopydb-app.fullname" . }}-pvc
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
