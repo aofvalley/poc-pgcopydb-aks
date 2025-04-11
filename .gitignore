@@ -42,6 +42,7 @@ yarn-error.log
 
 # Kubernetes
 kubeconfig
+adv_aks
 
 # Secrets - no incluir archivos con información sensible
 *.pem
