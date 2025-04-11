@@ -1,4 +1,4 @@
-# PgCopyDB para Azure Kubernetes Service (AKS)
+# PoC - PgCopyDB para Azure Kubernetes Service (AKS)
 
 Solución para clonar, migrar y manipular bases de datos PostgreSQL utilizando [pgcopydb](https://github.com/dimitri/pgcopydb) en contenedores Docker y Kubernetes.
 
