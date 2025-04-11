@@ -41,10 +41,16 @@ RUN mkdir -p /app/pgcopydb_files/backups && \
 # Establecer permisos adecuados
 RUN chmod -R 777 /app/pgcopydb_files
 
-# Crear un usuario no-root
-RUN groupadd -r pgcopydb && \
-    useradd -r -g pgcopydb -d /app -s /bin/bash pgcopydb && \
-    chown -R pgcopydb:pgcopydb /app
+# Crear un usuario no-root con UID y GID explícitos para mayor compatibilidad con K8s
+RUN groupadd -r -g 1000 pgcopydb && \
+    useradd -r -u 1000 -g pgcopydb -d /app -s /bin/bash pgcopydb
+
+# Crear y establecer permisos adecuados en directorios
+RUN mkdir -p /app/pgcopydb_files/temp_storage \
+    /app/pgcopydb_files/backups \
+    /app/pgcopydb_files/logs \
+    && chmod -R 775 /app/pgcopydb_files \
+    && chown -R pgcopydb:pgcopydb /app
 
 # Definir variables de entorno para los directorios
 ENV PGCOPYDB_TEMP_DIR=/app/pgcopydb_files/temp_storage
